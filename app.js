@@ -159,14 +159,9 @@ startBtn.addEventListener("click", () => {
 });
 
 nextBtn.addEventListener("click", showNextWord);
-
 speakCantoneseBtn.addEventListener("click", () => speakCurrentChar("cantonese"));
 speakMandarinBtn.addEventListener("click", () => speakCurrentChar("mandarin"));
 
-// iOS/Safari 常見：voices 會延遲載入
 if ("speechSynthesis" in window) {
-  window.speechSynthesis.onvoiceschanged = () => {
-    window.speechSynthesis.getVoices();
-  };
   window.speechSynthesis.getVoices();
 }
