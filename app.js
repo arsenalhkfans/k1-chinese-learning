@@ -25,6 +25,8 @@ const homePage = document.getElementById("home-page");
 const learnPage = document.getElementById("learn-page");
 const startBtn = document.getElementById("start-btn");
 const nextBtn = document.getElementById("next-btn");
+const speakCantoneseBtn = document.getElementById("speak-cantonese-btn");
+const speakMandarinBtn = document.getElementById("speak-mandarin-btn");
 const wordEmoji = document.getElementById("word-emoji");
 const wordChar = document.getElementById("word-char");
 
@@ -49,6 +51,37 @@ function showNextWord() {
   wordChar.textContent = currentWord.char;
 }
 
+function pickVoiceByLang(langCode) {
+  if (!("speechSynthesis" in window)) {
+    alert("此裝置不支援語音功能。");
+    return null;
+  }
+
+  const voices = window.speechSynthesis.getVoices();
+  return voices.find((voice) => voice.lang.toLowerCase().startsWith(langCode.toLowerCase())) || null;
+}
+
+function speakCurrentChar(langCode, languageLabel) {
+  const currentChar = wordChar.textContent.trim();
+  if (!currentChar) {
+    return;
+  }
+
+  const voice = pickVoiceByLang(langCode);
+  if (!voice) {
+    alert(`此裝置未有 ${languageLabel} 語音（${langCode}）。`);
+    return;
+  }
+
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(currentChar);
+  utterance.voice = voice;
+  utterance.lang = voice.lang;
+  utterance.rate = 0.9;
+  utterance.pitch = 1;
+  window.speechSynthesis.speak(utterance);
+}
+
 startBtn.addEventListener("click", () => {
   homePage.classList.remove("active");
   learnPage.classList.add("active");
@@ -56,3 +89,12 @@ startBtn.addEventListener("click", () => {
 });
 
 nextBtn.addEventListener("click", showNextWord);
+speakCantoneseBtn.addEventListener("click", () => speakCurrentChar("zh-HK", "廣東話"));
+speakMandarinBtn.addEventListener("click", () => speakCurrentChar("zh-CN", "普通話"));
+
+if ("speechSynthesis" in window) {
+  window.speechSynthesis.onvoiceschanged = () => {
+    window.speechSynthesis.getVoices();
+  };
+  window.speechSynthesis.getVoices();
+}
