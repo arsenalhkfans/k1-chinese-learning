@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>K1 中文字學習</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="app">
+      <section id="home-page" class="card page active" aria-labelledby="home-title">
+        <h1 id="home-title">K1 中文字學習</h1>
+        <p>按「開始」學習中文字！</p>
+        <button id="start-btn" class="btn btn-primary" type="button">開始</button>
+      </section>
+
+      <section id="learn-page" class="card page" aria-labelledby="learn-title">
+        <h2 id="learn-title">學習頁</h2>
+        <div class="word-display" aria-live="polite">
+          <div id="word-emoji" class="emoji" role="img" aria-label="中文字圖案"></div>
+          <div id="word-char" class="character"></div>
+        </div>
+        <div class="actions">
+          <button id="next-btn" class="btn btn-secondary" type="button">下一個</button>
+        </div>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
