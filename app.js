@@ -21,19 +21,6 @@ const words = [
   { char: "米", emoji: "🍚" }
 ];
 
-const VOICE_CONFIG = {
-  cantonese: {
-    label: "廣東話",
-    preferredLangs: ["yue-HK", "yue", "zh-HK", "zh-TW", "zh-CN", "zh"],
-    excludedLangPrefixes: []
-  },
-  mandarin: {
-    label: "普通話",
-    preferredLangs: ["zh-CN", "cmn-Hans-CN", "zh-TW", "zh", "zh-HK"],
-    excludedLangPrefixes: ["yue", "yue-HK"]
-  }
-};
-
 const homePage = document.getElementById("home-page");
 const learnPage = document.getElementById("learn-page");
 const startBtn = document.getElementById("start-btn");
@@ -64,38 +51,14 @@ function showNextWord() {
   wordChar.textContent = currentWord.char;
 }
 
-function isExcludedVoice(voiceLang, excludedLangPrefixes) {
-  const normalizedLang = voiceLang.toLowerCase();
-  return excludedLangPrefixes.some((prefix) => normalizedLang.startsWith(prefix.toLowerCase()));
-}
-
-function isCantoneseLikeVoice(voice) {
-  const lang = (voice.lang || "").toLowerCase();
-  const name = (voice.name || "").toLowerCase();
-  const uri = (voice.voiceURI || "").toLowerCase();
-  const marker = `${name} ${uri}`;
-
-  if (lang.startsWith("yue")) {
-    return true;
-  }
-
-  return marker.includes("canton") || marker.includes("yue") || marker.includes("粵") || marker.includes("粤");
-}
-
-function findVoiceByLanguage(voices, preferredLangs, excludedLangPrefixes = [], mode = "") {
-  let filteredVoices = voices.filter((voice) => !isExcludedVoice(voice.lang, excludedLangPrefixes));
-
-  if (mode === "mandarin") {
-    filteredVoices = filteredVoices.filter((voice) => !isCantoneseLikeVoice(voice));
-  }
-
+function findVoiceByLanguage(voices, preferredLangs) {
   for (const lang of preferredLangs) {
-    const exactVoice = filteredVoices.find((voice) => voice.lang.toLowerCase() === lang.toLowerCase());
+    const exactVoice = voices.find((voice) => voice.lang.toLowerCase() === lang.toLowerCase());
     if (exactVoice) {
       return exactVoice;
     }
 
-    const partialVoice = filteredVoices.find((voice) => voice.lang.toLowerCase().startsWith(lang.toLowerCase()));
+    const partialVoice = voices.find((voice) => voice.lang.toLowerCase().startsWith(lang.toLowerCase()));
     if (partialVoice) {
       return partialVoice;
     }
@@ -116,16 +79,12 @@ function getVoicesWithWait(timeoutMs = 1200) {
 
   return new Promise((resolve) => {
     let settled = false;
-    const previousHandler = window.speechSynthesis.onvoiceschanged;
 
-    const finalize = (voiceList) => {
-      if (settled) {
-        return;
+    const finalize = (voices) => {
+      if (!settled) {
+        settled = true;
+        resolve(voices);
       }
-      settled = true;
-      window.clearTimeout(timer);
-      window.speechSynthesis.onvoiceschanged = previousHandler || null;
-      resolve(voiceList);
     };
 
     const timer = window.setTimeout(() => {
@@ -133,44 +92,48 @@ function getVoicesWithWait(timeoutMs = 1200) {
     }, timeoutMs);
 
     window.speechSynthesis.onvoiceschanged = () => {
+      window.clearTimeout(timer);
       finalize(window.speechSynthesis.getVoices());
     };
   });
 }
 
+const VOICE_CONFIG = {
+  cantonese: {
+    label: "廣東話",
+    preferredLangs: ["zh-HK", "yue-HK", "yue", "zh-TW", "zh-CN", "zh"]
+  },
+  mandarin: {
+    label: "普通話",
+    preferredLangs: ["zh-CN", "cmn-Hans-CN", "zh-TW", "zh-HK", "zh"]
+  }
+};
+
 async function speakCurrentChar(mode) {
   const currentChar = wordChar.textContent.trim();
-  if (!currentChar) {
-    return;
-  }
+  if (!currentChar) return;
 
   if (!("speechSynthesis" in window)) {
-    alert("此裝置不支援語音功能。\n可改用 Chrome/Safari 最新版本再試。");
+    alert("此裝置/瀏覽器不支援語音功能。");
     return;
   }
 
-  const currentConfig = VOICE_CONFIG[mode];
-  if (!currentConfig) {
-    return;
-  }
+  const config = VOICE_CONFIG[mode];
+  if (!config) return;
 
   const voices = await getVoicesWithWait();
-  const selectedVoice = findVoiceByLanguage(
-    voices,
-    currentConfig.preferredLangs,
-    currentConfig.excludedLangPrefixes,
-    mode
-  );
+  const selectedVoice = findVoiceByLanguage(voices, config.preferredLangs);
 
   if (!selectedVoice) {
-    if (mode === "mandarin") {
-      alert("此裝置未安裝普通話語音，請到系統語音設定下載。");
-      return;
-    }
-
-    alert(`此手機未有可用中文語音。\n請到系統語言/語音設定下載 ${currentConfig.label} 語音，或者改用其他瀏覽器。`);
+    alert(
+      `此裝置未提供可用中文語音（包括${config.label}）。\n` +
+      `你可以到系統「文字轉語音/TTS」下載中文語音，或改用其他瀏覽器/裝置。`
+    );
     return;
   }
+
+  // 避免手機疊音/卡住
+  window.speechSynthesis.cancel();
 
   const utterance = new SpeechSynthesisUtterance(currentChar);
   utterance.voice = selectedVoice;
@@ -178,16 +141,17 @@ async function speakCurrentChar(mode) {
   utterance.rate = 0.9;
   utterance.pitch = 1;
 
-  window.speechSynthesis.cancel();
   window.speechSynthesis.speak(utterance);
 
-  const targetLang = currentConfig.preferredLangs[0].toLowerCase();
-  const isFallback = !selectedVoice.lang.toLowerCase().startsWith(targetLang);
-  if (isFallback) {
-    alert(`此裝置未有 ${currentConfig.label} 專用語音，已改用 ${selectedVoice.lang} 讀音。`);
+  // 若用到 fallback（例如冇 zh-HK，只能用 zh-CN）
+  const target = config.preferredLangs[0].toLowerCase();
+  const actual = (selectedVoice.lang || "").toLowerCase();
+  if (!actual.startsWith(target)) {
+    alert(`此裝置未有 ${config.label} 專用語音，已改用 ${selectedVoice.lang} 讀音。`);
   }
 }
 
+// ======= 綁定事件：每個按鈕只綁一次 =======
 startBtn.addEventListener("click", () => {
   homePage.classList.remove("active");
   learnPage.classList.add("active");
@@ -195,13 +159,14 @@ startBtn.addEventListener("click", () => {
 });
 
 nextBtn.addEventListener("click", showNextWord);
-speakCantoneseBtn.addEventListener("click", () => {
-  speakCurrentChar("cantonese");
-});
-speakMandarinBtn.addEventListener("click", () => {
-  speakCurrentChar("mandarin");
-});
 
+speakCantoneseBtn.addEventListener("click", () => speakCurrentChar("cantonese"));
+speakMandarinBtn.addEventListener("click", () => speakCurrentChar("mandarin"));
+
+// iOS/Safari 常見：voices 會延遲載入
 if ("speechSynthesis" in window) {
+  window.speechSynthesis.onvoiceschanged = () => {
+    window.speechSynthesis.getVoices();
+  };
   window.speechSynthesis.getVoices();
 }
