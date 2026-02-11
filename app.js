@@ -21,17 +21,6 @@ const words = [
   { char: "米", emoji: "🍚" }
 ];
 
-const VOICE_CONFIG = {
-  cantonese: {
-    label: "廣東話",
-    preferredLangs: ["zh-HK", "yue-HK", "zh-TW", "zh-CN", "zh"]
-  },
-  mandarin: {
-    label: "普通話",
-    preferredLangs: ["zh-CN", "cmn-Hans-CN", "zh-TW", "zh-HK", "zh"]
-  }
-};
-
 const homePage = document.getElementById("home-page");
 const learnPage = document.getElementById("learn-page");
 const startBtn = document.getElementById("start-btn");
@@ -90,16 +79,12 @@ function getVoicesWithWait(timeoutMs = 1200) {
 
   return new Promise((resolve) => {
     let settled = false;
-    const previousHandler = window.speechSynthesis.onvoiceschanged;
 
     const finalize = (voices) => {
-      if (settled) {
-        return;
+      if (!settled) {
+        settled = true;
+        resolve(voices);
       }
-      settled = true;
-      window.clearTimeout(timer);
-      window.speechSynthesis.onvoiceschanged = previousHandler || null;
-      resolve(voices);
     };
 
     const timer = window.setTimeout(() => {
@@ -107,12 +92,24 @@ function getVoicesWithWait(timeoutMs = 1200) {
     }, timeoutMs);
 
     window.speechSynthesis.onvoiceschanged = () => {
+      window.clearTimeout(timer);
       finalize(window.speechSynthesis.getVoices());
     };
   });
 }
 
 async function speakCurrentChar(mode) {
+function pickVoiceByLang(langCode) {
+  if (!("speechSynthesis" in window)) {
+    alert("此裝置不支援語音功能。");
+    return null;
+  }
+
+  const voices = window.speechSynthesis.getVoices();
+  return voices.find((voice) => voice.lang.toLowerCase().startsWith(langCode.toLowerCase())) || null;
+}
+
+function speakCurrentChar(langCode, languageLabel) {
   const currentChar = wordChar.textContent.trim();
   if (!currentChar) {
     return;
@@ -123,11 +120,18 @@ async function speakCurrentChar(mode) {
     return;
   }
 
-  const currentConfig = VOICE_CONFIG[mode];
-  if (!currentConfig) {
-    return;
-  }
+  const voiceConfig = {
+    cantonese: {
+      label: "廣東話",
+      preferredLangs: ["zh-HK", "yue-HK", "zh-TW", "zh-CN", "zh"]
+    },
+    mandarin: {
+      label: "普通話",
+      preferredLangs: ["zh-CN", "cmn-Hans-CN", "zh-TW", "zh-HK", "zh"]
+    }
+  };
 
+  const currentConfig = voiceConfig[mode];
   const voices = await getVoicesWithWait();
   const selectedVoice = findVoiceByLanguage(voices, currentConfig.preferredLangs);
 
@@ -145,11 +149,23 @@ async function speakCurrentChar(mode) {
   window.speechSynthesis.cancel();
   window.speechSynthesis.speak(utterance);
 
-  const targetLang = currentConfig.preferredLangs[0].toLowerCase();
-  const isFallback = !selectedVoice.lang.toLowerCase().startsWith(targetLang);
+  const isFallback = !selectedVoice.lang.toLowerCase().startsWith(currentConfig.preferredLangs[0].toLowerCase());
   if (isFallback) {
     alert(`此裝置未有 ${currentConfig.label} 專用語音，已改用 ${selectedVoice.lang} 讀音。`);
   }
+  const voice = pickVoiceByLang(langCode);
+  if (!voice) {
+    alert(`此裝置未有 ${languageLabel} 語音（${langCode}）。`);
+    return;
+  }
+
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(currentChar);
+  utterance.voice = voice;
+  utterance.lang = voice.lang;
+  utterance.rate = 0.9;
+  utterance.pitch = 1;
+  window.speechSynthesis.speak(utterance);
 }
 
 startBtn.addEventListener("click", () => {
@@ -167,5 +183,12 @@ speakMandarinBtn.addEventListener("click", () => {
 });
 
 if ("speechSynthesis" in window) {
+speakCantoneseBtn.addEventListener("click", () => speakCurrentChar("zh-HK", "廣東話"));
+speakMandarinBtn.addEventListener("click", () => speakCurrentChar("zh-CN", "普通話"));
+
+if ("speechSynthesis" in window) {
+  window.speechSynthesis.onvoiceschanged = () => {
+    window.speechSynthesis.getVoices();
+  };
   window.speechSynthesis.getVoices();
 }
