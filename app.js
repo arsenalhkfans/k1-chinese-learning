@@ -51,6 +51,54 @@ function showNextWord() {
   wordChar.textContent = currentWord.char;
 }
 
+function findVoiceByLanguage(voices, preferredLangs) {
+  for (const lang of preferredLangs) {
+    const exactVoice = voices.find((voice) => voice.lang.toLowerCase() === lang.toLowerCase());
+    if (exactVoice) {
+      return exactVoice;
+    }
+
+    const partialVoice = voices.find((voice) => voice.lang.toLowerCase().startsWith(lang.toLowerCase()));
+    if (partialVoice) {
+      return partialVoice;
+    }
+  }
+
+  return null;
+}
+
+function getVoicesWithWait(timeoutMs = 1200) {
+  if (!("speechSynthesis" in window)) {
+    return Promise.resolve([]);
+  }
+
+  const initialVoices = window.speechSynthesis.getVoices();
+  if (initialVoices.length > 0) {
+    return Promise.resolve(initialVoices);
+  }
+
+  return new Promise((resolve) => {
+    let settled = false;
+
+    const finalize = (voices) => {
+      if (!settled) {
+        settled = true;
+        resolve(voices);
+      }
+    };
+
+    const timer = window.setTimeout(() => {
+      finalize(window.speechSynthesis.getVoices());
+    }, timeoutMs);
+
+    window.speechSynthesis.onvoiceschanged = () => {
+      window.clearTimeout(timer);
+      finalize(window.speechSynthesis.getVoices());
+    };
+  });
+}
+
+async function speakCurrentChar(mode) {
 function pickVoiceByLang(langCode) {
   if (!("speechSynthesis" in window)) {
     alert("此裝置不支援語音功能。");
@@ -67,6 +115,44 @@ function speakCurrentChar(langCode, languageLabel) {
     return;
   }
 
+  if (!("speechSynthesis" in window)) {
+    alert("此裝置不支援語音功能。\n可改用 Chrome/Safari 最新版本再試。");
+    return;
+  }
+
+  const voiceConfig = {
+    cantonese: {
+      label: "廣東話",
+      preferredLangs: ["zh-HK", "yue-HK", "zh-TW", "zh-CN", "zh"]
+    },
+    mandarin: {
+      label: "普通話",
+      preferredLangs: ["zh-CN", "cmn-Hans-CN", "zh-TW", "zh-HK", "zh"]
+    }
+  };
+
+  const currentConfig = voiceConfig[mode];
+  const voices = await getVoicesWithWait();
+  const selectedVoice = findVoiceByLanguage(voices, currentConfig.preferredLangs);
+
+  if (!selectedVoice) {
+    alert(`此手機未有可用中文語音。\n請到系統語言/語音設定下載 ${currentConfig.label} 語音，或者改用其他瀏覽器。`);
+    return;
+  }
+
+  const utterance = new SpeechSynthesisUtterance(currentChar);
+  utterance.voice = selectedVoice;
+  utterance.lang = selectedVoice.lang;
+  utterance.rate = 0.9;
+  utterance.pitch = 1;
+
+  window.speechSynthesis.cancel();
+  window.speechSynthesis.speak(utterance);
+
+  const isFallback = !selectedVoice.lang.toLowerCase().startsWith(currentConfig.preferredLangs[0].toLowerCase());
+  if (isFallback) {
+    alert(`此裝置未有 ${currentConfig.label} 專用語音，已改用 ${selectedVoice.lang} 讀音。`);
+  }
   const voice = pickVoiceByLang(langCode);
   if (!voice) {
     alert(`此裝置未有 ${languageLabel} 語音（${langCode}）。`);
@@ -89,6 +175,14 @@ startBtn.addEventListener("click", () => {
 });
 
 nextBtn.addEventListener("click", showNextWord);
+speakCantoneseBtn.addEventListener("click", () => {
+  speakCurrentChar("cantonese");
+});
+speakMandarinBtn.addEventListener("click", () => {
+  speakCurrentChar("mandarin");
+});
+
+if ("speechSynthesis" in window) {
 speakCantoneseBtn.addEventListener("click", () => speakCurrentChar("zh-HK", "廣東話"));
 speakMandarinBtn.addEventListener("click", () => speakCurrentChar("zh-CN", "普通話"));
 
