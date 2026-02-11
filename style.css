@@ -4,7 +4,6 @@
   --primary: #2878f0;
   --secondary: #1ea97c;
   --voice: #7ec8ff;
-  --voice: #f08c2e;
   --text: #1f2a37;
 }
 
@@ -73,7 +72,6 @@ p {
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 0.5rem;
-  justify-content: flex-end;
 }
 
 .btn {
@@ -81,8 +79,6 @@ p {
   border-radius: 12px;
   padding: 0.75rem 1.1rem;
   font-size: 1.05rem;
-  padding: 0.75rem 1.25rem;
-  font-size: 1.1rem;
   font-weight: 700;
   color: #fff;
   cursor: pointer;
@@ -118,12 +114,5 @@ p {
 
   .btn {
     width: 100%;
-  }
-  .btn {
-    width: 100%;
-  }
-
-  .actions {
-    justify-content: stretch;
   }
 }
